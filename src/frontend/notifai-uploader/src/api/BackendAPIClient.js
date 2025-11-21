@@ -6,8 +6,15 @@ export function useBackendAPIClient() {
   const { user, refreshSession } = useAuth();
 
   const backendAPIClient = useMemo(() => {
+    const backendURL =
+      window.env?.REACT_APP_BACKEND_API_BASE_URL ||
+      process.env.REACT_APP_BACKEND_API_BASE_URL;
+    const baseURL = backendURL?.startsWith("http")
+      ? backendURL
+      : `http://${backendURL}`;
+
     const instance = axios.create({
-      baseURL: `https://` + window.env?.REACT_APP_BACKEND_API_BASE_URL || process.env.REACT_APP_BACKEND_API_BASE_URL,
+      baseURL: baseURL,
     });
 
     let isRefreshing = false;

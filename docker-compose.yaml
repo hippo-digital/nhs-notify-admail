@@ -1,0 +1,93 @@
+x-aws-environment: &aws-environment
+  AWS_DEFAULT_REGION: eu-west-2
+  AWS_REGION: eu-west-2
+  AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+  AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+  AWS_SESSION_TOKEN: ${AWS_SESSION_TOKEN}
+
+services:
+  frontend:
+    build:
+      context: src/frontend/notifai-uploader
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+      - bedrock-prompt-messager
+    environment:
+      <<: *aws-environment
+      REACT_APP_BACKEND_API_BASE_URL: "http://localhost:8080"
+      REACT_APP_COGNITO_ID: "4kgkrqjc0770v6slu27pjuagb1"
+      REACT_APP_COGNITO_USER_POOL_ID: "eu-west-2_JuQWLuCTr"
+      REACT_APP_API_GATEWAY: "http://localhost:8081/call-llm"
+    healthcheck:
+      test: ["CMD", "curl", "http://localhost:80/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  backend:
+    build:
+      context: src/backend/app
+    ports:
+      - "8080:8080"
+    entrypoint:
+      [
+        "fastapi",
+        "dev",
+        "/app/main.py",
+        "--port",
+        "8080",
+        "--host",
+        "0.0.0.0",
+        "--reload",
+      ]
+    volumes:
+      - "${PWD}/src/backend/app:/app"
+    environment:
+      <<: *aws-environment
+      COGNITO_REGION: "eu-west-2"
+      COGNITO_USER_POOL_ID: "eu-west-2_JuQWLuCTr"
+      COGNITO_APP_CLIENT_ID: "4kgkrqjc0770v6slu27pjuagb1"
+      S3_LLM_LOGS_BUCKET: "nhs-notifai-shared"
+      S3_LLM_LOGS_DIRECTORY: "logs/"
+      S3_LLM_LOGS_BUCKET_ACCOUNT_ID: "496395772806"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python3",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8080/health')",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  bedrock-prompt-messager:
+    build:
+      context: src/backend/bedrock-prompt-messager
+      dockerfile: Dockerfile
+    ports:
+      - "8081:8080"
+    volumes:
+      - "${PWD}/src/backend/bedrock-prompt-messager:/var/task"
+    environment:
+      <<: *aws-environment
+      env_model_id: "amazon.nova-pro-v1:0"
+      env_temperature: "0.1"
+      env_max_tokens: "5000"
+      env_top_p: "0.5"
+      env_logging_s3_bucket: "nhs-notifai-shared"
+      env_logging_s3_key_prefix: "logs/"
+      env_guardrail_arn: "arn:aws:bedrock:eu-west-2:496395772806:guardrail/7z5kf9qg62is"
+      env_guardrail_version: "1"
+      env_logging_s3_account_id: "496395772806"
+    healthcheck:
+      test: ["CMD", "curl", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
