@@ -140,6 +140,9 @@ class AuthMiddleware(BaseHTTPMiddleware):
         if request.method == "OPTIONS":
             return await call_next(request)
 
+        if request.url.path in ["/health"]:
+            return await call_next(request)
+
         try:
             payload = _verify_request_token(request, self.authenticator)
             request.state.user = payload
